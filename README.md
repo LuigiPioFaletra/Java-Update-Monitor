@@ -44,7 +44,7 @@ python monitor.py
 
 These locally set values are **not read by GitHub Actions**: for automatic execution they must be configured as repository *Secrets*:
 
-1. Go to **Settings → Secrets and variables → Actions** in the GitHub repository;
+1. go to **Settings → Secrets and variables → Actions** in the GitHub repository;
 2. create a secret named `BOT_TOKEN` with the Telegram bot token;
 3. create a secret named `CHAT_ID` with the id of the destination chat/channel;
 4. make sure the repository's **Actions** tab is enabled (GitHub sometimes disables it by default on new repositories).
