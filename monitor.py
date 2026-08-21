@@ -20,10 +20,10 @@ HEADERS = {
 # Reminder specific to the laptop where updates otherwise fail with error 1603.
 # Edit or remove this if it stops being relevant.
 TEMP_REMINDER = (
-    "Prima di installare sul portatile: sposta TEMP e TMP da "
+    "Prima di aggiornare sul portatile: sposta TEMP e TMP da "
     "%USERPROFILE%\\AppData\\Local\\Temp a C:\\Temp (creala se serve), "
-    "riavvia il PC, poi lancia l'installer Offline con tasto destro > "
-    "Esegui come amministratore."
+    "riavvia il PC, poi apri il Pannello di controllo Java (cerca "
+    "'Rileva aggiornamenti' nel menu Start) e clicca 'Aggiorna ora'."
 )
 
 
