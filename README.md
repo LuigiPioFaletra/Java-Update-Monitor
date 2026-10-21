@@ -62,7 +62,7 @@ The behavior can be adjusted through a few constants at the top of `monitor.py`:
 - `JAVA_URL`: the page being monitored (`https://www.java.com/en/download/manual.jsp` by default);
 - `ERROR_NOTIFY_THRESHOLD`: number of consecutive failed checks before an error notification is sent;
 - `HEARTBEAT_DAYS`: how often the heartbeat notification is sent;
-- `TEMP_REMINDER`: the text appended to every update notification. It currently reminds to move `TEMP`/`TMP` to `C:\Temp` and update through the Java Control Panel ("Rileva aggiornamenti" in the Start menu → "Aggiorna ora") on one specific machine where updates otherwise fail with error 1603 — edit or remove it if it stops being relevant. If this method were ever to fail, downloading the Offline installer from java.com and running it as administrator is the documented fallback with a longer track record.
+- `TEMP_REMINDER`: the text appended to every update notification. It currently lists, step by step, the procedure for one specific machine: create `C:\Temp`, point the user `TEMP`/`TMP` variables to it and restart, update through the Java Control Panel ("Rileva aggiornamenti" in the Start menu → "Aggiorna ora"), then restore `TEMP`/`TMP` to `%USERPROFILE%\AppData\Local\Temp` and delete `C:\Temp`. It is needed on that machine where updates otherwise fail with error 1603 — edit or remove it if it stops being relevant. If this method were ever to fail, downloading the Offline installer from java.com and running it as administrator is the documented fallback with a longer track record.
 
 ## Error notifications
 
