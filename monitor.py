@@ -20,10 +20,19 @@ HEADERS = {
 # Reminder specific to the laptop where updates otherwise fail with error 1603.
 # Edit or remove this if it stops being relevant.
 TEMP_REMINDER = (
-    "Prima di aggiornare sul portatile: sposta TEMP e TMP da "
-    "%USERPROFILE%\\AppData\\Local\\Temp a C:\\Temp (creala se serve), "
-    "riavvia il PC, poi apri il Pannello di controllo Java (cerca "
-    "'Rileva aggiornamenti' nel menu Start) e clicca 'Aggiorna ora'."
+    "Procedura di aggiornamento sul portatile:\n"
+    "1) Se non esiste, crea la cartella C:\\Temp (non importa se è vuota "
+    "o piena).\n"
+    "2) Apri 'Modifica le variabili d'ambiente relative al tuo account' "
+    "(cercalo nel menu Start) e, tra le variabili dell'utente, cambia TEMP "
+    "e TMP da %USERPROFILE%\\AppData\\Local\\Temp a C:\\Temp. "
+    "Conferma con OK e riavvia il PC.\n"
+    "3) Apri il Pannello di controllo Java (cerca 'Rileva aggiornamenti' "
+    "nel menu Start), clicca 'Aggiorna ora' e completa l'aggiornamento.\n"
+    "4) Riporta le variabili TEMP e TMP dell'utente a "
+    "%USERPROFILE%\\AppData\\Local\\Temp e conferma con OK.\n"
+    "5) Elimina la cartella C:\\Temp (se qualche file risulta in uso, "
+    "riavvia il PC e riprova)."
 )
 
 
