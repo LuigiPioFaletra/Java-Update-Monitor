@@ -53,7 +53,7 @@ Without these two secrets, the script prints "Telegram non configurato" and send
 
 ### 3. Scheduling
 
-The workflow runs at 10:00 and 22:00 Italian time (cron `0 8,20 * * *`, calculated for summer daylight saving time UTC+2; in winter the actual local time will be 9:00/21:00, since GitHub Actions always runs in UTC and doesn't automatically adjust for daylight saving changes). It can also be triggered manually from the Actions tab ("Run workflow").
+The workflow runs at 10:00 and 22:00 Italian time (cron `0 8,20 * * *`, calculated for summer daylight saving time UTC+2; in winter the actual local time will be 9:00/21:00, since GitHub Actions always runs in UTC and doesn't automatically adjust for daylight saving changes). It can also be triggered manually from the Actions tab ("Run workflow"). Ticking "Invia notifica di prova" in that dialog skips the update check and sends a sample update notification for the current version (marked as a test), useful to preview the message on Telegram; `state.json` is left untouched.
 
 ## Configuration
 

@@ -8,6 +8,7 @@ import requests
 STATE_FILE = "state.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+TEST_NOTIFICATION = os.getenv("TEST_NOTIFICATION") == "true"
 
 JAVA_URL = "https://www.java.com/en/download/manual.jsp"
 ERROR_NOTIFY_THRESHOLD = 2
@@ -98,7 +99,24 @@ def get_latest_java():
     }
 
 
+def update_message(info):
+    msg = f"☕ Nuovo aggiornamento Java: 8 Update {info['update']}\n"
+    if info["release_date"]:
+        msg += f"Rilasciato il {info['release_date']}\n"
+    msg += f"\nDownload: {info['download_url']}\n"
+    msg += f"\n⚠️ {TEMP_REMINDER}"
+    return msg
+
+
 def main():
+    if TEST_NOTIFICATION:
+        # Manual test from "Run workflow": sends the update notification for
+        # the current version without touching state.json.
+        info = get_latest_java()
+        telegram("🧪 Messaggio di prova\n\n" + update_message(info))
+        print("Notifica di prova inviata")
+        return
+
     print(f"Controllo Java: {datetime.now():%d/%m/%Y %H:%M}")
     state = load_json(STATE_FILE, {})
     old_update = state.get("last_update")
@@ -113,12 +131,7 @@ def main():
             telegram("✅ Il monitor Java è tornato a funzionare correttamente.")
 
         if old_update is not None and info["update"] != old_update:
-            msg = f"☕ Nuovo aggiornamento Java: 8 Update {info['update']}\n"
-            if info["release_date"]:
-                msg += f"Rilasciato il {info['release_date']}\n"
-            msg += f"\nDownload: {info['download_url']}\n"
-            msg += f"\n⚠️ {TEMP_REMINDER}"
-            telegram(msg)
+            telegram(update_message(info))
             print("Notifica inviata")
         else:
             print("Nessun nuovo aggiornamento")

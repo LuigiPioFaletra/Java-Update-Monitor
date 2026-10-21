@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 8,20 * * *"
   workflow_dispatch:
+    inputs:
+      test_notification:
+        description: "Invia notifica di prova (non controlla aggiornamenti)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,6 +32,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
+          TEST_NOTIFICATION: ${{ inputs.test_notification }}
         run: python monitor.py
 
       - name: Commit updated state
