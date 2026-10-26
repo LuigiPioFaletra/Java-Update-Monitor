@@ -66,9 +66,21 @@ The behavior can be adjusted through a few constants at the top of `monitor.py`:
 
 ## Error notifications
 
-If the download page is unreachable for **two consecutive checks**, a separate Telegram notification is sent. The two-check threshold avoids alerting on a single transient issue, while still flagging a persistent problem within about ten hours. When the page becomes reachable again, a recovery notification is sent.
+If the download page is still unreachable after **two consecutive checks** (each one already retrying a few times on its own), a separate Telegram notification is sent. The two-check threshold avoids alerting on a single transient issue, while still flagging a persistent problem within about ten hours. When the page becomes reachable again, a recovery notification is sent.
 
 The threshold can be configured by changing `ERROR_NOTIFY_THRESHOLD` in `monitor.py`.
+
+## Network resilience
+
+Both the Java page request and the Telegram API calls go through an HTTP session that automatically retries transient failures (timeouts, dropped connections, HTTP 429/5xx) with exponential backoff, using separate connect/read timeouts (`JAVA_TIMEOUT`, `TELEGRAM_TIMEOUT`).
+
+A Telegram failure never crashes the script or fails the workflow: it is logged, `state.json` is still saved, and the message is retried on the next run:
+
+- **update notification**: the previous version is kept in `state.json`, so the next run detects the update again and resends it;
+- **error notification**: sent on the first run at or above the threshold where Telegram is reachable (tracked by the `error_notified` flag);
+- **heartbeat**: `last_heartbeat` is only updated once the message has actually been delivered.
+
+Telegram retries are kept lower than the Java page ones, because a read timeout may mean the message was delivered anyway: in rare cases this can result in a duplicate message, which is preferred over a lost one.
 
 ## Heartbeat notifications
 

@@ -1,9 +1,12 @@
 import os
 import re
+import sys
 import json
 from datetime import datetime
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 STATE_FILE = "state.json"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -17,6 +20,37 @@ HEARTBEAT_DAYS = 7
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
+
+# (connect, read) timeouts in seconds.
+JAVA_TIMEOUT = (10, 30)
+TELEGRAM_TIMEOUT = (10, 30)
+
+
+def make_session(total_retries):
+    """Session that automatically retries transient network errors
+    (timeouts, dropped connections, 429/5xx) with exponential backoff."""
+    retry = Retry(
+        total=total_retries,
+        connect=total_retries,
+        read=total_retries,
+        status=total_retries,
+        backoff_factor=3,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "POST"],
+        respect_retry_after_header=True,
+        raise_on_status=False,
+    )
+    session = requests.Session()
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+JAVA_SESSION = make_session(total_retries=3)
+# Fewer retries for Telegram: a read timeout may mean the message was
+# actually delivered, so retrying too much could produce duplicates.
+TELEGRAM_SESSION = make_session(total_retries=2)
 
 # Reminder specific to the laptop where updates otherwise fail with error 1603.
 # Edit or remove this if it stops being relevant.
@@ -51,25 +85,34 @@ def save_json(path, data):
 
 
 def telegram(message):
+    """Sends a Telegram message. Never raises: returns True on success,
+    False on failure, so a Telegram outage can't crash the monitor."""
     if not BOT_TOKEN or not CHAT_ID:
         print("Telegram non configurato")
-        return
-    requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={
-            "chat_id": CHAT_ID,
-            "text": message,
-            "disable_web_page_preview": True,
-        },
-        timeout=20,
-    ).raise_for_status()
+        return False
+    try:
+        TELEGRAM_SESSION.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            data={
+                "chat_id": CHAT_ID,
+                "text": message,
+                "disable_web_page_preview": True,
+            },
+            timeout=TELEGRAM_TIMEOUT,
+        ).raise_for_status()
+        return True
+    except requests.exceptions.RequestException as e:
+        # Print only the exception type: the message could contain the
+        # URL with the bot token.
+        print(f"Invio Telegram fallito ({type(e).__name__})")
+        return False
 
 
 def get_latest_java():
     """Reads the official Java 8 download page and extracts the current
     update number, its release date, and the direct Windows Offline
     (64-bit) download link."""
-    r = requests.get(JAVA_URL, headers=HEADERS, timeout=30)
+    r = JAVA_SESSION.get(JAVA_URL, headers=HEADERS, timeout=JAVA_TIMEOUT)
     r.raise_for_status()
     html = r.text
     # Strip tags before matching version/date text, so an inline tag
@@ -113,7 +156,9 @@ def main():
         # Manual test from "Run workflow": sends the update notification for
         # the current version without touching state.json.
         info = get_latest_java()
-        telegram("🧪 Messaggio di prova\n\n" + update_message(info))
+        if not telegram("🧪 Messaggio di prova\n\n" + update_message(info)):
+            print("Notifica di prova NON inviata")
+            sys.exit(1)
         print("Notifica di prova inviata")
         return
 
@@ -121,36 +166,51 @@ def main():
     state = load_json(STATE_FILE, {})
     old_update = state.get("last_update")
     consecutive_errors = state.get("consecutive_errors", 0)
-    was_down = consecutive_errors >= ERROR_NOTIFY_THRESHOLD
+    # Backward compatible with state.json files written before this flag
+    # existed: the old logic notified exactly when the threshold was hit.
+    error_notified = state.get(
+        "error_notified", consecutive_errors >= ERROR_NOTIFY_THRESHOLD
+    )
 
     try:
         info = get_latest_java()
-        consecutive_errors = 0
-
-        if was_down:
-            telegram("✅ Il monitor Java è tornato a funzionare correttamente.")
-
-        if old_update is not None and info["update"] != old_update:
-            telegram(update_message(info))
-            print("Notifica inviata")
-        else:
-            print("Nessun nuovo aggiornamento")
-
-        state["last_update"] = info["update"]
-        state["last_release_date"] = info["release_date"]
-        state["last_checked"] = datetime.now().isoformat()
-
     except Exception as e:
+        info = None
         consecutive_errors += 1
-        print(f"Errore: {e}")
-        if consecutive_errors == ERROR_NOTIFY_THRESHOLD:
-            telegram(
+        print(f"Errore lettura pagina Java: {e}")
+        if consecutive_errors >= ERROR_NOTIFY_THRESHOLD and not error_notified:
+            # Retried on every run until it actually goes through.
+            error_notified = telegram(
                 "⚠️ Il monitor Java non riesce a leggere la pagina di "
-                f"download da {ERROR_NOTIFY_THRESHOLD} controlli consecutivi.\n"
+                f"download da {consecutive_errors} controlli consecutivi.\n"
                 f"{JAVA_URL}"
             )
 
+    if info is not None:
+        consecutive_errors = 0
+        if error_notified:
+            telegram("✅ Il monitor Java è tornato a funzionare correttamente.")
+            error_notified = False
+
+        if old_update is not None and info["update"] != old_update:
+            if telegram(update_message(info)):
+                print("Notifica inviata")
+                state["last_update"] = info["update"]
+                state["last_release_date"] = info["release_date"]
+            else:
+                # Keep the old version in state.json so the next run
+                # detects the update again and retries the notification.
+                print("Nuovo aggiornamento trovato ma notifica non inviata: "
+                      "verrà ritentata al prossimo controllo")
+        else:
+            print("Nessun nuovo aggiornamento")
+            state["last_update"] = info["update"]
+            state["last_release_date"] = info["release_date"]
+
+        state["last_checked"] = datetime.now().isoformat()
+
     state["consecutive_errors"] = consecutive_errors
+    state["error_notified"] = error_notified
 
     first_run = state.get("first_run", datetime.now().isoformat())
     state["first_run"] = first_run
@@ -162,13 +222,16 @@ def main():
         days_since = (datetime.now() - datetime.fromisoformat(last_heartbeat)).days
         if days_since >= HEARTBEAT_DAYS:
             days_running = (datetime.now() - datetime.fromisoformat(first_run)).days
-            telegram(
+            sent = telegram(
                 "💓 Monitor Java attivo\n"
                 f"Ultimo controllo: {datetime.now():%d/%m/%Y %H:%M}\n"
                 f"Versione tracciata: 8 Update {state.get('last_update', 'n/d')}\n"
                 f"In esecuzione da {days_running} giorni"
             )
-            state["last_heartbeat"] = datetime.now().isoformat()
+            # If it fails, last_heartbeat is left as is and the heartbeat
+            # is retried on the next run.
+            if sent:
+                state["last_heartbeat"] = datetime.now().isoformat()
 
     save_json(STATE_FILE, state)
 
