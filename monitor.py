@@ -142,10 +142,18 @@ def get_latest_java():
     }
 
 
-def update_message(info):
-    msg = f"☕ Nuovo aggiornamento Java: 8 Update {info['update']}\n"
-    if info["release_date"]:
-        msg += f"Rilasciato il {info['release_date']}\n"
+def update_message(info, previous_date=None):
+    """previous_date is set for a re-release: same update number, new
+    release date (Oracle sometimes republishes an update with a new build)."""
+    if previous_date:
+        msg = (f"🔁 Java 8 Update {info['update']} ripubblicato "
+               "(nuova build)\n")
+        msg += (f"Nuova data di rilascio: {info['release_date']} "
+                f"(prima: {previous_date})\n")
+    else:
+        msg = f"☕ Nuovo aggiornamento Java: 8 Update {info['update']}\n"
+        if info["release_date"]:
+            msg += f"Rilasciato il {info['release_date']}\n"
     msg += f"\nDownload: {info['download_url']}\n"
     msg += f"\n⚠️ {TEMP_REMINDER}"
     return msg
@@ -165,6 +173,7 @@ def main():
     print(f"Controllo Java: {datetime.now():%d/%m/%Y %H:%M}")
     state = load_json(STATE_FILE, {})
     old_update = state.get("last_update")
+    old_release_date = state.get("last_release_date")
     consecutive_errors = state.get("consecutive_errors", 0)
     # Backward compatible with state.json files written before this flag
     # existed: the old logic notified exactly when the threshold was hit.
@@ -192,20 +201,37 @@ def main():
             telegram("✅ Il monitor Java è tornato a funzionare correttamente.")
             error_notified = False
 
-        if old_update is not None and info["update"] != old_update:
-            if telegram(update_message(info)):
+        is_new_update = old_update is not None and info["update"] != old_update
+        # Both dates must be known: a date the regex failed to read is not
+        # a re-release.
+        is_republished = (
+            not is_new_update
+            and old_update is not None
+            and old_release_date is not None
+            and info["release_date"] is not None
+            and info["release_date"] != old_release_date
+        )
+
+        if is_new_update or is_republished:
+            message = update_message(
+                info, old_release_date if is_republished else None
+            )
+            if telegram(message):
                 print("Notifica inviata")
                 state["last_update"] = info["update"]
                 state["last_release_date"] = info["release_date"]
             else:
-                # Keep the old version in state.json so the next run
-                # detects the update again and retries the notification.
-                print("Nuovo aggiornamento trovato ma notifica non inviata: "
+                # Keep the old version/date in state.json so the next run
+                # detects the change again and retries the notification.
+                print("Novità trovata ma notifica non inviata: "
                       "verrà ritentata al prossimo controllo")
         else:
             print("Nessun nuovo aggiornamento")
             state["last_update"] = info["update"]
-            state["last_release_date"] = info["release_date"]
+            # Keep the last known date if this read missed it, so a later
+            # re-release is still compared against it.
+            if info["release_date"] is not None:
+                state["last_release_date"] = info["release_date"]
 
         state["last_checked"] = datetime.now().isoformat()
 

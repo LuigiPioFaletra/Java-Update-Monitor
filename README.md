@@ -10,6 +10,7 @@ On every run, `monitor.py`:
 2. extracts the current update number, its release date, and the direct "Windows Offline (64-bit)" download link;
 3. compares the update number against the last one saved in `state.json`;
 4. if it changed, sends a Telegram message with the new version, its release date, the download link, and a reminder about a known installation workaround (see Configuration below); if the page is unreachable for several consecutive runs, sends an error notification (see below).
+5. if the update number is the same but the release date changed, sends a "republished" notification: Oracle sometimes re-releases the same update with a new build (e.g. 8u511 b32 → b33), which the Java updater installs but which would otherwise go unnoticed.
 
 Execution is automated via GitHub Actions (`.github/workflows/monitor.yml`), twice a day, regardless of whether the local PC is on or off.
 
